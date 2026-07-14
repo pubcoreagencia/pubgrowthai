@@ -87,18 +87,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Transforme campanhas do Instagram em relatórios executivos claros, métricas confiáveis e dashboards profissionais para seus clientes.",
       },
       { name: "author", content: "PubGrowth AI" },
-      { property: "og:title", content: "PubGrowth AI — Relatórios executivos" },
+      { property: "og:title", content: "PubGrowth AI — Relatórios executivos de campanhas do Instagram" },
       {
         property: "og:description",
         content:
-          "Dashboards e relatórios profissionais para campanhas do Instagram.",
+          "Transforme campanhas do Instagram em relatórios executivos claros, métricas confiáveis e dashboards profissionais para seus clientes.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "PubGrowth AI — Relatórios executivos de campanhas do Instagram" },
+      { name: "twitter:description", content: "Transforme campanhas do Instagram em relatórios executivos claros, métricas confiáveis e dashboards profissionais para seus clientes." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/0Oc5cY8BBHdoPpuKPeTAjiRJo952/social-images/social-1784057131536-ChatGPT_Image_14_de_jul._de_2026,_16_23_29.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/0Oc5cY8BBHdoPpuKPeTAjiRJo952/social-images/social-1784057131536-ChatGPT_Image_14_de_jul._de_2026,_16_23_29.webp" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "preconnect",
