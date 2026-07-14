@@ -1,7 +1,8 @@
-// Estimation engine — MVP 1.0.
-// Takes a Campaign (only views informed manually) plus the admin-tunable
-// EstimationSettings and produces every derived indicator used by the
-// dashboard, funnel and executive report.
+// Motor de cálculo — MVP 1.0.
+//
+// Regra do MVP: apenas as IMPRESSÕES são projetadas automaticamente
+// (a partir das views e da taxa configurável). Todas as demais métricas
+// vêm dos valores informados manualmente pelo gestor em CampaignResults.
 
 import type { Campaign } from "./campaigns-store";
 import type { EstimationSettings } from "./estimation-settings";
@@ -11,24 +12,27 @@ export interface CampaignEstimates {
   investment: number;
   views: number;
 
-  // Reach & engagement
+  // Único indicador simulado
   impressions: number;
-  interactions: number; // curtidas + comentários
+  impressionsEstimated: boolean;
+
+  // Manuais
+  likes: number;
+  comments: number;
+  shares: number;
   saves: number;
-  totalEngagements: number;
+  interactions: number; // likes + comments + shares
+  totalEngagements: number; // interactions + saves
   engagementRate: number; // %
 
-  // Traffic & conversion
   clicks: number;
   purchases: number;
   ctr: number; // %
   conversionRate: number; // %
 
-  // Post-sale
   upsells: number;
   crossSells: number;
 
-  // Revenue
   productValue: number;
   upsellValue: number;
   crossSellValue: number;
@@ -36,8 +40,8 @@ export interface CampaignEstimates {
   revenueUpsell: number;
   revenueCrossSell: number;
   revenueTotal: number;
+  revenueManual: boolean;
 
-  // Efficiency
   cpv: number | null;
   cpc: number | null;
   cpa: number | null;
@@ -51,45 +55,55 @@ export function estimateCampaign(
   const investment = (c.dailyBudget || 0) * (c.days || 0);
   const views = c.results.views ?? 0;
 
+  // Única métrica simulada
   const impressions =
     s.viewsShareOfImpressions > 0 ? views / s.viewsShareOfImpressions : 0;
 
-  const interactions = views * s.engagementRate;
-  const saves = views * s.savesRate;
+  // Manuais
+  const likes = c.results.likes ?? 0;
+  const comments = c.results.comments ?? 0;
+  const shares = c.results.shares ?? 0;
+  const saves = c.results.saves ?? 0;
+  const interactions = likes + comments + shares;
   const totalEngagements = interactions + saves;
-  const engagementRate =
-    views > 0 ? (totalEngagements / views) * 100 : 0;
+  const engagementRate = views > 0 ? (totalEngagements / views) * 100 : 0;
 
-  const clicks = impressions * s.ctrOnImpressions;
-  const purchases = clicks * s.purchaseConversion;
-
+  const clicks = c.results.linkClicks ?? 0;
+  const purchases = c.results.purchases ?? 0;
   const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
   const conversionRate = clicks > 0 ? (purchases / clicks) * 100 : 0;
 
-  const upsells = purchases * s.upsellRate;
-  const crossSells = purchases * s.crossSellRate;
+  const upsells = c.results.upsells ?? 0;
+  const crossSells = c.results.crossSells ?? 0;
 
   const productValue = c.avgProductValue ?? 0;
-  const upsellValue = c.avgUpsellValue ?? productValue * s.upsellValueRatio;
-  const crossSellValue =
-    c.avgCrossSellValue ?? productValue * s.crossSellValueRatio;
+  const upsellValue = c.avgUpsellValue ?? 0;
+  const crossSellValue = c.avgCrossSellValue ?? 0;
 
   const revenueMain = purchases * productValue;
   const revenueUpsell = upsells * upsellValue;
   const revenueCrossSell = crossSells * crossSellValue;
-  const revenueTotal = revenueMain + revenueUpsell + revenueCrossSell;
+
+  const revenueManual = c.results.revenue !== undefined && c.results.revenue > 0;
+  const revenueTotal = revenueManual
+    ? (c.results.revenue as number)
+    : revenueMain + revenueUpsell + revenueCrossSell;
 
   const cpv = views > 0 ? investment / views : null;
   const cpc = clicks > 0 ? investment / clicks : null;
   const cpa = purchases > 0 ? investment / purchases : null;
-  const roas = investment > 0 ? revenueTotal / investment : null;
+  const roas = investment > 0 && revenueTotal > 0 ? revenueTotal / investment : null;
 
   return {
     investment,
     views,
     impressions,
-    interactions,
+    impressionsEstimated: views > 0,
+    likes,
+    comments,
+    shares,
     saves,
+    interactions,
     totalEngagements,
     engagementRate,
     clicks,
@@ -105,6 +119,7 @@ export function estimateCampaign(
     revenueUpsell,
     revenueCrossSell,
     revenueTotal,
+    revenueManual,
     cpv,
     cpc,
     cpa,
@@ -117,6 +132,7 @@ export interface FunnelStep {
   name: string;
   phase: "topo" | "meio" | "fundo" | "pos";
   value: number;
+  estimated: boolean;
   cumulativeRevenue?: number;
 }
 
@@ -132,21 +148,21 @@ export function buildFunnel(
   const recurring = e.purchases * s.recurringCustomerRate;
 
   return [
-    { key: "start", name: "Campanha iniciada", phase: "topo", value: e.impressions },
-    { key: "impressions", name: "Pessoas impactadas", phase: "topo", value: e.impressions },
-    { key: "views", name: "Assistiram ao vídeo", phase: "topo", value: e.views },
-    { key: "remarketing", name: "Entraram em remarketing", phase: "meio", value: remarketing },
-    { key: "reimpact", name: "Receberam vídeo novamente", phase: "meio", value: remarketingReceived },
-    { key: "cta", name: "Receberam CTA", phase: "meio", value: ctaReached },
-    { key: "clicks", name: "Clicaram no link", phase: "fundo", value: e.clicks },
-    { key: "offer", name: "Visualizaram a oferta", phase: "fundo", value: offerViewed },
-    { key: "checkout", name: "Iniciaram checkout", phase: "fundo", value: checkoutStarted },
-    { key: "purchase", name: "Compraram", phase: "fundo", value: e.purchases, cumulativeRevenue: e.revenueMain },
-    { key: "upsell_offer", name: "Receberam oferta de Upsell", phase: "pos", value: e.purchases },
-    { key: "upsell_buy", name: "Compraram Upsell", phase: "pos", value: e.upsells, cumulativeRevenue: e.revenueMain + e.revenueUpsell },
-    { key: "cross_offer", name: "Receberam Cross Sell", phase: "pos", value: e.purchases },
-    { key: "cross_buy", name: "Compraram Cross Sell", phase: "pos", value: e.crossSells, cumulativeRevenue: e.revenueTotal },
-    { key: "recurring", name: "Clientes recorrentes", phase: "pos", value: recurring },
+    { key: "start", name: "Campanha iniciada", phase: "topo", value: e.impressions, estimated: true },
+    { key: "impressions", name: "Pessoas impactadas", phase: "topo", value: e.impressions, estimated: true },
+    { key: "views", name: "Assistiram ao vídeo", phase: "topo", value: e.views, estimated: false },
+    { key: "remarketing", name: "Entraram em remarketing", phase: "meio", value: remarketing, estimated: true },
+    { key: "reimpact", name: "Receberam vídeo novamente", phase: "meio", value: remarketingReceived, estimated: true },
+    { key: "cta", name: "Receberam CTA", phase: "meio", value: ctaReached, estimated: true },
+    { key: "clicks", name: "Clicaram no link", phase: "fundo", value: e.clicks, estimated: false },
+    { key: "offer", name: "Visualizaram a oferta", phase: "fundo", value: offerViewed, estimated: true },
+    { key: "checkout", name: "Iniciaram checkout", phase: "fundo", value: checkoutStarted, estimated: true },
+    { key: "purchase", name: "Compraram", phase: "fundo", value: e.purchases, estimated: false, cumulativeRevenue: e.revenueMain },
+    { key: "upsell_offer", name: "Receberam oferta de Upsell", phase: "pos", value: e.purchases, estimated: false },
+    { key: "upsell_buy", name: "Compraram Upsell", phase: "pos", value: e.upsells, estimated: false, cumulativeRevenue: e.revenueMain + e.revenueUpsell },
+    { key: "cross_offer", name: "Receberam Cross Sell", phase: "pos", value: e.purchases, estimated: false },
+    { key: "cross_buy", name: "Compraram Cross Sell", phase: "pos", value: e.crossSells, estimated: false, cumulativeRevenue: e.revenueMain + e.revenueUpsell + e.revenueCrossSell },
+    { key: "recurring", name: "Clientes recorrentes", phase: "pos", value: recurring, estimated: true },
   ];
 }
 
@@ -188,45 +204,45 @@ export function buildExecutiveReport(
   const parts: string[] = [];
 
   parts.push(
-    `A campanha "${c.campaignName}" para ${c.clientName} foi veiculada por ${c.days} dia${c.days === 1 ? "" : "s"}, com investimento total de ${formatBRL(e.investment)} (${formatBRL(c.dailyBudget)} por dia). Os números apresentados são estimativas projetadas a partir das ${formatInt(e.views)} visualizações informadas e das taxas de mercado configuradas na plataforma.`,
+    `A campanha "${c.campaignName}" para ${c.clientName} foi veiculada por ${c.days} dia${c.days === 1 ? "" : "s"}, com investimento total de ${formatBRL(e.investment)} (${formatBRL(c.dailyBudget)} por dia). As ${formatInt(e.views)} visualizações informadas se traduzem em uma estimativa de ${formatInt(e.impressions)} impressões — únicos indicadores projetados; os demais números refletem os resultados reais informados.`,
   );
 
-  parts.push(
-    `Estima-se que o vídeo tenha gerado ${formatInt(e.impressions)} impressões, alcançando um público amplo no topo do funil. As ${formatInt(e.views)} visualizações representam a fatia efetivamente engajada com o criativo, com ${formatInt(e.totalEngagements)} interações estimadas — curtidas, comentários e salvamentos combinados — resultando em uma taxa de engajamento projetada de ${formatPct(e.engagementRate)}.`,
-  );
-
-  parts.push(
-    `Ao longo da jornada de conversão, o funil aponta para ${formatInt(e.clicks)} cliques no link (CTR de ${formatPct(e.ctr)}) e ${formatInt(e.purchases)} compra${e.purchases === 1 ? "" : "s"} concretizada${e.purchases === 1 ? "" : "s"}, o que equivale a uma taxa de conversão de ${formatPct(e.conversionRate)} entre quem clica e quem compra.`,
-  );
-
-  if (e.productValue > 0) {
+  if (e.totalEngagements > 0) {
     parts.push(
-      `Somando venda principal (${formatBRL(e.revenueMain)}), upsell (${formatBRL(e.revenueUpsell)} em ${formatInt(e.upsells)} operações) e cross sell (${formatBRL(e.revenueCrossSell)} em ${formatInt(e.crossSells)} operações), a receita total projetada é de ${formatBRL(e.revenueTotal)}, com ROAS estimado de ${formatNumber(e.roas)}.`,
-    );
-  } else {
-    parts.push(
-      `O valor médio do produto não foi informado, portanto a receita projetada não pôde ser calculada. Recomenda-se preencher o ticket médio para obter uma estimativa completa de ROAS e retorno.`,
+      `A publicação gerou ${formatInt(e.totalEngagements)} interações no total (${formatInt(e.likes)} curtidas, ${formatInt(e.comments)} comentários, ${formatInt(e.shares)} compartilhamentos e ${formatInt(e.saves)} salvamentos), resultando em uma taxa de engajamento sobre views de ${formatPct(e.engagementRate)}.`,
     );
   }
 
-  if (e.roas !== null && e.productValue > 0) {
+  if (e.clicks > 0 || e.purchases > 0) {
+    parts.push(
+      `Ao longo da jornada de conversão foram registrados ${formatInt(e.clicks)} cliques no link (CTR de ${formatPct(e.ctr)}) e ${formatInt(e.purchases)} compra${e.purchases === 1 ? "" : "s"} concretizada${e.purchases === 1 ? "" : "s"}, equivalente a uma taxa de conversão de ${formatPct(e.conversionRate)} entre clique e compra.`,
+    );
+  }
+
+  if (e.revenueTotal > 0) {
+    parts.push(
+      `A receita total foi de ${formatBRL(e.revenueTotal)}${e.revenueMain > 0 ? `, sendo ${formatBRL(e.revenueMain)} da venda principal` : ""}${e.revenueUpsell > 0 ? `, ${formatBRL(e.revenueUpsell)} em ${formatInt(e.upsells)} upsells` : ""}${e.revenueCrossSell > 0 ? ` e ${formatBRL(e.revenueCrossSell)} em ${formatInt(e.crossSells)} cross sells` : ""}${e.roas !== null ? `. O ROAS resultante foi de ${formatNumber(e.roas)}` : ""}.`,
+    );
+  }
+
+  if (e.roas !== null) {
     if (e.roas >= 3) {
       parts.push(
-        `O desempenho projetado é sólido: para cada real investido, a expectativa é de retorno de ${formatNumber(e.roas)} reais. Recomenda-se manter o criativo em veiculação e considerar escalar o investimento diário, monitorando a saturação da audiência.`,
+        `O desempenho é sólido: para cada real investido, o retorno foi de ${formatNumber(e.roas)} reais. Recomenda-se manter o criativo em veiculação e considerar escalar o investimento diário, monitorando a saturação da audiência.`,
       );
     } else if (e.roas >= 1.5) {
       parts.push(
-        `O retorno projetado é positivo, porém há margem para otimização. Sugere-se testar variações de CTA, refinar o público de remarketing e reforçar gatilhos de conversão para elevar a taxa de compra sobre cliques.`,
+        `O retorno é positivo, porém há margem para otimização. Sugere-se testar variações de CTA, refinar o público de remarketing e reforçar gatilhos de conversão para elevar a taxa de compra sobre cliques.`,
       );
     } else {
       parts.push(
-        `O ROAS projetado indica que o funil precisa de ajustes antes de qualquer escala. Prioridades sugeridas: revisar a oferta, encurtar o caminho até o checkout e trabalhar campanhas dedicadas de recuperação de abandono para converter o volume já gerado.`,
+        `O ROAS indica que o funil precisa de ajustes antes de qualquer escala. Prioridades sugeridas: revisar a oferta, encurtar o caminho até o checkout e trabalhar campanhas dedicadas de recuperação de abandono.`,
       );
     }
   }
 
   parts.push(
-    `Recomendações para a próxima campanha: reforçar a estratégia de upsell (hoje projetada em ${formatInt(e.upsells)} operações) e cross sell (${formatInt(e.crossSells)}) para elevar o ticket médio; nutrir a base de remarketing gerada por este vídeo com um segundo criativo focado em conversão; e acompanhar a evolução do CPA (${formatBRL(e.cpa)}) e CPV (${formatBRL(e.cpv)}) ao longo dos próximos aportes.`,
+    `Recomendações para a próxima campanha: reforçar upsell e cross sell para elevar o ticket médio; nutrir a base de remarketing gerada por este vídeo com um segundo criativo focado em conversão; e acompanhar a evolução do CPA (${formatBRL(e.cpa)}) e CPV (${formatBRL(e.cpv)}) ao longo dos próximos aportes.`,
   );
 
   return parts;

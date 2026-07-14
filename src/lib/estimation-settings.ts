@@ -1,42 +1,22 @@
-// Estimation settings for the projection engine.
-// Persisted in localStorage so the administrator can tune the rates
-// per client / niche without touching code. Every rate here is a lever
-// used by campaign-estimates.ts.
+// Configurações mínimas: apenas o que é simulado pela plataforma.
+// Neste MVP a única métrica projetada automaticamente são as impressões,
+// derivadas das views. As demais taxas apoiam etapas intermediárias
+// do funil que o gestor não informa manualmente.
 
 import { useSyncExternalStore } from "react";
 
 export interface EstimationSettings {
-  // Core spec rates (from the official MVP 1.0 document)
-  viewsShareOfImpressions: number;   // 0.10 → Views representam 10% das impressões
-  engagementRate: number;             // 0.03 → Curtidas + Comentários = 3% das views
-  savesRate: number;                  // 0.02 → Salvamentos = 2% das views
-  ctrOnImpressions: number;           // 0.015 → Cliques = 1,5% das impressões
-  purchaseConversion: number;         // 0.03 → Compras = 3% dos cliques
-  upsellRate: number;                 // 0.30 → 30% dos compradores
-  crossSellRate: number;              // 0.20 → 20% dos compradores
-
-  // Product economics — used quando o gestor não informa valor médio de upsell/cross
-  upsellValueRatio: number;           // 0.5 → upsell = 50% do ticket médio
-  crossSellValueRatio: number;        // 0.3 → cross sell = 30% do ticket médio
-
-  // Funnel-only projections (para etapas intermediárias do funil)
-  remarketingReachRate: number;       // 0.6 → das views voltam a ser impactadas
-  ctaViewRate: number;                // 0.4 → veem CTA reforçado
-  offerViewRate: number;              // 0.9 → dos cliques visualizam oferta
-  checkoutInitiationRate: number;     // 0.4 → dos cliques iniciam checkout
-  recurringCustomerRate: number;      // 0.2 → dos compradores viram recorrentes
+  viewsShareOfImpressions: number;   // 0.10 → Views ≈ 10% das impressões
+  // Etapas intermediárias do funil (não são informadas manualmente):
+  remarketingReachRate: number;      // 0.6 → das views recebem o vídeo novamente
+  ctaViewRate: number;               // 0.4 → das views veem o CTA reforçado
+  offerViewRate: number;             // 0.9 → dos cliques visualizam a oferta
+  checkoutInitiationRate: number;    // 0.4 → dos cliques iniciam checkout
+  recurringCustomerRate: number;     // 0.2 → dos compradores viram recorrentes
 }
 
 export const DEFAULT_SETTINGS: EstimationSettings = {
   viewsShareOfImpressions: 0.1,
-  engagementRate: 0.03,
-  savesRate: 0.02,
-  ctrOnImpressions: 0.015,
-  purchaseConversion: 0.03,
-  upsellRate: 0.3,
-  crossSellRate: 0.2,
-  upsellValueRatio: 0.5,
-  crossSellValueRatio: 0.3,
   remarketingReachRate: 0.6,
   ctaViewRate: 0.4,
   offerViewRate: 0.9,
