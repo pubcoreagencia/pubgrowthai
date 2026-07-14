@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCampaigns } from "@/lib/campaigns-store";
-import { computeMetrics, formatBRL, formatInt, formatNumber } from "@/lib/campaign-metrics";
+import { useEstimationSettings } from "@/lib/estimation-settings";
+import { estimateCampaign, formatBRL, formatInt, formatNumber } from "@/lib/campaign-estimates";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,27 +31,21 @@ export const Route = createFileRoute("/")({
 
 function Overview() {
   const campaigns = useCampaigns();
+  const settings = useEstimationSettings();
 
   const totals = useMemo(() => {
-    const t = {
-      investment: 0,
-      views: 0,
-      clicks: 0,
-      followers: 0,
-      purchases: 0,
-      revenue: 0,
-    };
+    const t = { investment: 0, views: 0, impressions: 0, clicks: 0, purchases: 0, revenue: 0 };
     for (const c of campaigns) {
-      const m = computeMetrics(c);
-      t.investment += m.totalInvestment;
-      t.views += c.results.views ?? 0;
-      t.clicks += c.results.linkClicks ?? 0;
-      t.followers += m.followersGained;
-      t.purchases += c.results.purchases ?? 0;
-      t.revenue += m.revenue;
+      const e = estimateCampaign(c, settings);
+      t.investment += e.investment;
+      t.views += e.views;
+      t.impressions += e.impressions;
+      t.clicks += e.clicks;
+      t.purchases += e.purchases;
+      t.revenue += e.revenueTotal;
     }
     return t;
-  }, [campaigns]);
+  }, [campaigns, settings]);
 
   const roas = totals.investment > 0 ? totals.revenue / totals.investment : null;
 
@@ -59,14 +54,14 @@ function Overview() {
       .slice()
       .reverse()
       .map((c) => {
-        const m = computeMetrics(c);
+        const e = estimateCampaign(c, settings);
         return {
           name: c.campaignName.slice(0, 14),
-          investimento: Math.round(m.totalInvestment),
-          receita: Math.round(m.revenue),
+          investimento: Math.round(e.investment),
+          receita: Math.round(e.revenueTotal),
         };
       });
-  }, [campaigns]);
+  }, [campaigns, settings]);
 
   if (campaigns.length === 0) {
     return (
@@ -84,7 +79,7 @@ function Overview() {
             Visão geral
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Consolidado de todas as suas campanhas do Instagram.
+            Consolidado projetado de todas as suas campanhas do Instagram.
           </p>
         </div>
         <Button asChild>
@@ -103,16 +98,15 @@ function Overview() {
           icon={<DollarSign className="h-4 w-4" />}
         />
         <StatCard
-          label="Visualizações"
+          label="Views informadas"
           value={formatInt(totals.views)}
           icon={<Eye className="h-4 w-4" />}
           accent="primary"
         />
         <StatCard
-          label="Seguidores ganhos"
-          value={formatInt(totals.followers)}
+          label="Impressões estimadas"
+          value={formatInt(totals.impressions)}
           icon={<Users className="h-4 w-4" />}
-          accent="success"
         />
         <StatCard
           label="ROAS médio"
@@ -125,23 +119,23 @@ function Overview() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Cliques"
+          label="Cliques estimados"
           value={formatInt(totals.clicks)}
           icon={<MousePointerClick className="h-4 w-4" />}
         />
         <StatCard
-          label="Compras"
+          label="Compras estimadas"
           value={formatInt(totals.purchases)}
           icon={<ShoppingBag className="h-4 w-4" />}
         />
         <StatCard
-          label="Receita"
+          label="Receita projetada"
           value={formatBRL(totals.revenue)}
           icon={<DollarSign className="h-4 w-4" />}
           accent="success"
         />
         <StatCard
-          label="Campanhas ativas"
+          label="Campanhas"
           value={campaigns.length}
           icon={<BarChart3 className="h-4 w-4" />}
         />
@@ -150,10 +144,8 @@ function Overview() {
       <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="surface-card p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Investimento × Receita</h2>
-            <span className="text-xs text-muted-foreground">
-              Últimas campanhas
-            </span>
+            <h2 className="text-sm font-semibold">Investimento × Receita projetada</h2>
+            <span className="text-xs text-muted-foreground">Últimas campanhas</span>
           </div>
           <div className="mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -188,20 +180,8 @@ function Overview() {
                     fontSize: 12,
                   }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="investimento"
-                  stroke="var(--color-chart-1)"
-                  fill="url(#gInvest)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="receita"
-                  stroke="var(--color-chart-2)"
-                  fill="url(#gRev)"
-                  strokeWidth={2}
-                />
+                <Area type="monotone" dataKey="investimento" stroke="var(--color-chart-1)" fill="url(#gInvest)" strokeWidth={2} />
+                <Area type="monotone" dataKey="receita" stroke="var(--color-chart-2)" fill="url(#gRev)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -211,7 +191,7 @@ function Overview() {
           <h2 className="text-sm font-semibold">Campanhas recentes</h2>
           <ul className="mt-3 space-y-2">
             {campaigns.slice(0, 6).map((c) => {
-              const m = computeMetrics(c);
+              const e = estimateCampaign(c, settings);
               return (
                 <li key={c.id}>
                   <Link
@@ -226,7 +206,7 @@ function Overview() {
                       </div>
                     </div>
                     <div className="ml-3 flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                      <span>{formatBRL(m.totalInvestment)}</span>
+                      <span>{formatBRL(e.investment)}</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </div>
                   </Link>
@@ -252,8 +232,9 @@ function EmptyState() {
           Transforme campanhas em <span className="text-gradient">relatórios executivos</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-          Cadastre sua primeira campanha do Instagram, informe os resultados e gere
-          automaticamente uma dashboard profissional pronta para apresentar ao cliente.
+          Cadastre uma campanha do Instagram informando apenas os dados essenciais.
+          A plataforma projeta todo o funil e gera um dashboard profissional pronto
+          para apresentar ao cliente.
         </p>
         <div className="mt-6 flex justify-center gap-2">
           <Button asChild size="lg">

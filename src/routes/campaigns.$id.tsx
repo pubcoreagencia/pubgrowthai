@@ -1,14 +1,17 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useCampaign, getCampaign } from "@/lib/campaigns-store";
+import { useEstimationSettings } from "@/lib/estimation-settings";
 import {
   buildExecutiveReport,
-  computeMetrics,
+  buildFunnel,
+  estimateCampaign,
   formatBRL,
   formatInt,
   formatNumber,
   formatPct,
   getInstagramEmbedId,
-} from "@/lib/campaign-metrics";
+  type FunnelStep,
+} from "@/lib/campaign-estimates";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,16 +32,18 @@ import {
   DollarSign,
   Eye,
   ExternalLink,
-  Heart,
+  Info,
   MousePointerClick,
   Printer,
+  Repeat,
   ShoppingBag,
+  Sparkles,
   Target,
   TrendingUp,
   Users,
   Zap,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 export const Route = createFileRoute("/campaigns/$id")({
   loader: ({ params }) => {
@@ -62,16 +67,68 @@ export const Route = createFileRoute("/campaigns/$id")({
 });
 
 const objectiveLabels: Record<string, string> = {
-  views: "Visualizações",
+  views: "Views",
   engagement: "Engajamento",
   traffic: "Tráfego",
   conversion: "Conversão",
+  sales: "Vendas",
   awareness: "Reconhecimento",
+};
+
+const phaseMeta: Record<
+  FunnelStep["phase"],
+  { label: string; color: string; description: string; actions: string[] }
+> = {
+  topo: {
+    label: "Topo do funil · Awareness",
+    color: "var(--color-chart-1)",
+    description:
+      "Objetivo: maximizar alcance e reconhecimento da marca junto a públicos amplos.",
+    actions: [
+      "Distribuir o vídeo para públicos amplos e diversificados.",
+      "Trabalhar a repetição controlada do criativo.",
+      "Construir a audiência de remarketing para as próximas fases.",
+    ],
+  },
+  meio: {
+    label: "Meio do funil · Consideração",
+    color: "var(--color-chart-4)",
+    description:
+      "Objetivo: gerar interesse e nutrir quem já assistiu ao vídeo.",
+    actions: [
+      "Exibir novamente o vídeo para quem já assistiu (remarketing).",
+      "Apresentar novos criativos que aprofundem o valor da oferta.",
+      "Inserir CTAs claros para aumentar o interesse e o clique.",
+    ],
+  },
+  fundo: {
+    label: "Fundo do funil · Conversão",
+    color: "var(--color-chart-2)",
+    description:
+      "Objetivo: transformar o interesse acumulado em compra concreta.",
+    actions: [
+      "Direcionar o público quente para a página da oferta.",
+      "Reforçar benefícios, provas sociais e diferenciais.",
+      "Aplicar gatilhos de urgência e recuperar abandonos de checkout.",
+    ],
+  },
+  pos: {
+    label: "Pós-venda · Retenção",
+    color: "var(--color-chart-3)",
+    description:
+      "Objetivo: aumentar o valor do cliente com upsell, cross sell e recompra.",
+    actions: [
+      "Oferecer upsell logo após a compra principal.",
+      "Apresentar cross sell complementar em sequência.",
+      "Incentivar recompra e fidelização com comunicação recorrente.",
+    ],
+  },
 };
 
 function CampaignDetail() {
   const { id } = Route.useParams();
   const c = useCampaign(id);
+  const settings = useEstimationSettings();
 
   if (!c) {
     return (
@@ -84,48 +141,38 @@ function CampaignDetail() {
     );
   }
 
-  const m = computeMetrics(c);
+  const e = estimateCampaign(c, settings);
+  const funnel = buildFunnel(e, settings);
   const embedId = getInstagramEmbedId(c.videoUrl);
-  const report = buildExecutiveReport(c, m);
+  const report = buildExecutiveReport(c, e);
 
-  const funnel = useMemo(() => {
-    const steps = [
-      { name: "Impressões", value: c.results.impressions ?? 0 },
-      { name: "Views", value: c.results.views ?? 0 },
-      { name: "Cliques", value: c.results.linkClicks ?? 0 },
-      { name: "Compras", value: c.results.purchases ?? 0 },
-    ];
-    return steps.map((s, i) => {
-      const prev = i > 0 ? steps[i - 1].value : null;
-      const pct = prev && prev > 0 ? (s.value / prev) * 100 : null;
-      return { ...s, pct };
-    });
-  }, [c.results]);
-
-  // Fake distribution: split investment / views linearly over the days for visual purpose.
   const trend = useMemo(() => {
     const days = Math.max(1, c.days);
-    const data = [] as Array<{ day: string; investimento: number; views: number; cliques: number }>;
-    const dailyInvest = m.totalInvestment / days;
-    const dailyViews = (c.results.views ?? 0) / days;
-    const dailyClicks = (c.results.linkClicks ?? 0) / days;
+    const data: Array<{ day: string; investimento: number; views: number; cliques: number }> = [];
+    const dInvest = e.investment / days;
+    const dViews = e.views / days;
+    const dClicks = e.clicks / days;
     for (let i = 1; i <= days; i++) {
       data.push({
         day: `D${i}`,
-        investimento: Math.round(dailyInvest * i),
-        views: Math.round(dailyViews * i),
-        cliques: Math.round(dailyClicks * i),
+        investimento: Math.round(dInvest * i),
+        views: Math.round(dViews * i),
+        cliques: Math.round(dClicks * i),
       });
     }
     return data;
-  }, [c.days, c.results.views, c.results.linkClicks, m.totalInvestment]);
+  }, [c.days, e.investment, e.views, e.clicks]);
 
   const engagementBreakdown = [
-    { name: "Curtidas", value: c.results.likes ?? 0 },
-    { name: "Comentários", value: c.results.comments ?? 0 },
-    { name: "Compart.", value: c.results.shares ?? 0 },
-    { name: "Salvos", value: c.results.saves ?? 0 },
+    { name: "Curtidas + Coment.", value: Math.round(e.interactions) },
+    { name: "Salvamentos", value: Math.round(e.saves) },
   ];
+
+  const phases: FunnelStep["phase"][] = ["topo", "meio", "fundo", "pos"];
+  const funnelByPhase = phases.map((p) => ({
+    phase: p,
+    steps: funnel.filter((s) => s.phase === p),
+  }));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 md:py-10">
@@ -145,6 +192,9 @@ function CampaignDetail() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-primary/40 text-primary">
               {objectiveLabels[c.objective]}
+            </Badge>
+            <Badge variant="outline" className="border-warning/50 text-[color:var(--color-warning)]">
+              Estimativa projetada
             </Badge>
             <span className="text-xs text-muted-foreground">
               {formatDate(c.startDate)} – {formatDate(c.endDate)} · {c.days} dia
@@ -172,68 +222,86 @@ function CampaignDetail() {
         </div>
       </div>
 
+      {/* Disclaimer */}
+      <div className="mt-5 flex items-start gap-2 rounded-lg border border-border/60 bg-card/40 p-3 text-xs text-muted-foreground">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <span>
+          Os indicadores abaixo são <strong className="text-foreground">estimativas</strong>{" "}
+          projetadas a partir das <strong className="text-foreground">{formatInt(e.views)} views</strong>{" "}
+          informadas e das taxas médias configuradas na plataforma. Servem como base
+          para tomada de decisão e apresentação ao cliente — não substituem dados
+          reais da Meta.
+        </span>
+      </div>
+
       {/* Main metric cards */}
-      <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
         <StatCard
           label="Investimento"
-          value={formatBRL(m.totalInvestment)}
+          value={formatBRL(e.investment)}
           hint={`${formatBRL(c.dailyBudget)} / dia`}
           icon={<DollarSign className="h-4 w-4" />}
         />
         <StatCard
           label="Views"
-          value={formatInt(c.results.views ?? 0)}
-          hint={m.cpv !== null ? `CPV ${formatBRL(m.cpv)}` : undefined}
+          value={formatInt(e.views)}
+          hint={e.cpv !== null ? `CPV ${formatBRL(e.cpv)}` : "informado"}
           icon={<Eye className="h-4 w-4" />}
           accent="primary"
         />
         <StatCard
-          label="Impressões"
-          value={formatInt(c.results.impressions ?? 0)}
-          hint={c.results.reach ? `Alcance ${formatInt(c.results.reach)}` : undefined}
+          label="Impressões estimadas"
+          value={formatInt(e.impressions)}
+          hint={`${formatPct(settings.viewsShareOfImpressions * 100, 0)} viraram views`}
           icon={<Zap className="h-4 w-4" />}
         />
         <StatCard
-          label="Seguidores conquistados"
-          value={
-            <span className={m.followersGained >= 0 ? "text-[color:var(--color-success)]" : "text-destructive"}>
-              {m.followersGained >= 0 ? "+" : ""}
-              {formatInt(m.followersGained)}
-            </span>
-          }
-          hint={
-            m.followersGrowthPct !== null
-              ? `${formatPct(m.followersGrowthPct)} · ${formatNumber(m.followersDailyAvg, 1)}/dia`
-              : `${formatNumber(m.followersDailyAvg, 1)} / dia`
-          }
+          label="Interações estimadas"
+          value={formatInt(e.totalEngagements)}
+          hint={`Engajamento ${formatPct(e.engagementRate)}`}
           icon={<Users className="h-4 w-4" />}
           accent="success"
         />
         <StatCard
-          label="Cliques"
-          value={formatInt(c.results.linkClicks ?? 0)}
-          hint={m.ctr !== null ? `CTR ${formatPct(m.ctr)}` : undefined}
+          label="Cliques estimados"
+          value={formatInt(e.clicks)}
+          hint={`CTR ${formatPct(e.ctr)}${e.cpc !== null ? ` · CPC ${formatBRL(e.cpc)}` : ""}`}
           icon={<MousePointerClick className="h-4 w-4" />}
         />
         <StatCard
-          label="Conversões"
-          value={formatInt(c.results.purchases ?? 0)}
-          hint={m.conversionRate !== null ? `${formatPct(m.conversionRate)} dos cliques` : undefined}
+          label="Compras estimadas"
+          value={formatInt(e.purchases)}
+          hint={`${formatPct(e.conversionRate)} dos cliques${e.cpa !== null ? ` · CPA ${formatBRL(e.cpa)}` : ""}`}
           icon={<ShoppingBag className="h-4 w-4" />}
         />
         <StatCard
-          label="Receita"
-          value={formatBRL(m.revenue)}
-          hint={m.cpa !== null ? `CPA ${formatBRL(m.cpa)}` : undefined}
+          label="Upsell / Cross sell"
+          value={`${formatInt(e.upsells)} / ${formatInt(e.crossSells)}`}
+          hint={`${formatBRL(e.revenueUpsell + e.revenueCrossSell)} adicionais`}
+          icon={<Repeat className="h-4 w-4" />}
+          accent="primary"
+        />
+        <StatCard
+          label="Receita estimada"
+          value={formatBRL(e.revenueTotal)}
+          hint={e.productValue > 0 ? `Ticket ${formatBRL(e.productValue)}` : "Informe o ticket médio"}
           icon={<TrendingUp className="h-4 w-4" />}
           accent="success"
         />
         <StatCard
-          label="ROAS"
-          value={m.roas !== null ? formatNumber(m.roas) : "—"}
-          hint={m.roas !== null ? (m.roas >= 2 ? "Bom desempenho" : "Otimizar") : "Sem receita"}
+          label="ROAS estimado"
+          value={e.roas !== null ? formatNumber(e.roas) : "—"}
+          hint={
+            e.roas === null
+              ? "Sem ticket médio"
+              : e.roas >= 3
+                ? "Excelente"
+                : e.roas >= 1.5
+                  ? "Bom — otimizar"
+                  : "Requer ajustes"
+          }
           icon={<Target className="h-4 w-4" />}
-          accent={m.roas && m.roas >= 2 ? "success" : "warning"}
+          accent={e.roas !== null && e.roas >= 2 ? "success" : "warning"}
         />
       </div>
 
@@ -275,9 +343,9 @@ function CampaignDetail() {
         <div className="grid grid-rows-[auto_1fr] gap-4">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Engajamento</h2>
+              <h2 className="text-sm font-semibold">Engajamento estimado</h2>
               <Badge variant="outline" className="border-primary/40 text-primary">
-                Taxa {m.engagementRate !== null ? formatPct(m.engagementRate) : "—"}
+                Taxa {formatPct(e.engagementRate)}
               </Badge>
             </div>
             <div className="mt-4 h-40">
@@ -306,14 +374,18 @@ function CampaignDetail() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <Heart className="h-3.5 w-3.5" />
-              Total {formatInt(m.totalEngagements)} interações
+            <div className="mt-3 text-xs text-muted-foreground">
+              {formatInt(e.interactions)} curtidas + comentários e{" "}
+              {formatInt(e.saves)} salvamentos projetados sobre as views.
             </div>
           </div>
 
           <div className="surface-card p-5">
-            <h2 className="text-sm font-semibold">Evolução da campanha</h2>
+            <h2 className="text-sm font-semibold">Evolução projetada</h2>
+            <p className="text-[11px] text-muted-foreground">
+              Acúmulo diário aproximado ao longo dos {c.days} dia
+              {c.days === 1 ? "" : "s"} de veiculação.
+            </p>
             <div className="mt-4 h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trend} margin={{ left: 0, right: 8, top: 8 }}>
@@ -338,27 +410,9 @@ function CampaignDetail() {
                       fontSize: 12,
                     }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="investimento"
-                    stroke="var(--color-chart-1)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="views"
-                    stroke="var(--color-chart-2)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="cliques"
-                    stroke="var(--color-chart-3)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  <Line type="monotone" dataKey="investimento" stroke="var(--color-chart-1)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="views" stroke="var(--color-chart-2)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="cliques" stroke="var(--color-chart-3)" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -371,31 +425,59 @@ function CampaignDetail() {
         </div>
       </div>
 
-      {/* Funnel */}
+      {/* Intelligent Funnel */}
       <div className="surface-card mt-6 p-6">
-        <h2 className="text-sm font-semibold">Funil de conversão</h2>
-        <div className="mt-5 space-y-3">
-          {funnel.map((step, i) => {
-            const max = funnel[0].value || 1;
-            const pct = (step.value / max) * 100;
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold">Funil inteligente da campanha</h2>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Jornada completa do usuário — do primeiro impacto à fidelização.
+          Cada etapa mostra a quantidade estimada, a conversão para a próxima
+          etapa e a perda entre etapas.
+        </p>
+
+        <div className="mt-6 space-y-8">
+          {funnelByPhase.map((group) => {
+            const meta = phaseMeta[group.phase];
             return (
-              <div key={step.name} className="flex items-center gap-3">
-                <div className="w-28 shrink-0 text-xs text-muted-foreground">
-                  {step.name}
+              <div key={group.phase}>
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2.5 py-1 text-xs font-medium"
+                    style={{ color: meta.color }}
+                  >
+                    <span
+                      className="inline-block h-2 w-2 rounded-full"
+                      style={{ backgroundColor: meta.color }}
+                    />
+                    {meta.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {meta.description}
+                  </span>
                 </div>
-                <div className="relative h-9 flex-1 overflow-hidden rounded-lg border border-border/60 bg-card/40">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-lg bg-[image:var(--gradient-primary)] opacity-90 transition-all"
-                    style={{ width: `${Math.max(pct, 3)}%` }}
-                  />
-                  <div className="relative flex h-full items-center justify-between px-3 text-xs font-medium">
-                    <span>{formatInt(step.value)}</span>
-                    {i > 0 && step.pct !== null && (
-                      <span className="text-[11px] text-muted-foreground">
-                        {formatPct(step.pct, 1)} vs. anterior
-                      </span>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  {group.steps.map((step, i) => {
+                    const idxInFunnel = funnel.findIndex((f) => f.key === step.key);
+                    const prev = idxInFunnel > 0 ? funnel[idxInFunnel - 1] : null;
+                    const conv =
+                      prev && prev.value > 0 ? (step.value / prev.value) * 100 : null;
+                    const drop = conv !== null ? 100 - conv : null;
+                    const max = funnel[0]?.value || 1;
+                    const width = Math.max(3, (step.value / max) * 100);
+                    return (
+                      <FunnelRow
+                        key={step.key}
+                        color={meta.color}
+                        step={step}
+                        width={width}
+                        conv={conv}
+                        drop={drop}
+                        isFirstInPhase={i === 0}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -403,15 +485,104 @@ function CampaignDetail() {
         </div>
       </div>
 
+      {/* Strategy Assistant */}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {phases.map((p) => {
+          const meta = phaseMeta[p];
+          return (
+            <div key={p} className="surface-card p-5">
+              <div
+                className="text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: meta.color }}
+              >
+                {meta.label}
+              </div>
+              <p className="mt-1 text-sm text-foreground/90">
+                {meta.description}
+              </p>
+              <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                {meta.actions.map((a) => (
+                  <li key={a} className="flex gap-2">
+                    <span
+                      className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full"
+                      style={{ backgroundColor: meta.color }}
+                    />
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Executive report */}
       <div className="surface-card mt-6 p-6">
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2">
           <div className="h-6 w-1 rounded-full bg-[image:var(--gradient-primary)]" />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Relatório executivo
           </h2>
         </div>
-        <p className="text-[15px] leading-relaxed text-foreground/90">{report}</p>
+        <div className="space-y-3 text-[15px] leading-relaxed text-foreground/90">
+          {report.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FunnelRow({
+  color,
+  step,
+  width,
+  conv,
+  drop,
+  isFirstInPhase,
+}: {
+  color: string;
+  step: FunnelStep;
+  width: number;
+  conv: number | null;
+  drop: number | null;
+  isFirstInPhase: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-52 shrink-0 truncate text-xs text-muted-foreground">
+        {step.name}
+      </div>
+      <div className="relative h-9 flex-1 overflow-hidden rounded-lg border border-border/60 bg-card/40">
+        <div
+          className="absolute inset-y-0 left-0 rounded-lg transition-all"
+          style={{
+            width: `${width}%`,
+            background: `linear-gradient(90deg, ${color}, ${color}90)`,
+            opacity: 0.9,
+          }}
+        />
+        <div className="relative flex h-full items-center justify-between gap-3 px-3 text-xs font-medium">
+          <span className="tabular-nums">{formatInt(step.value)}</span>
+          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {step.cumulativeRevenue !== undefined && (
+              <span className="text-[color:var(--color-success)]">
+                {formatBRL(step.cumulativeRevenue)}
+              </span>
+            )}
+            {conv !== null && !isFirstInPhase ? (
+              <>
+                <span>conv. {formatPct(conv, 1)}</span>
+                {drop !== null && drop > 0 && (
+                  <span className="text-destructive/80">
+                    −{formatPct(drop, 1)}
+                  </span>
+                )}
+              </>
+            ) : null}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -420,16 +591,13 @@ function CampaignDetail() {
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ backgroundColor: color }}
-      />
+      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
   );
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string): ReactNode {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, PlusCircle, Sparkles } from "lucide-react";
+import { BarChart3, LayoutDashboard, PlusCircle, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ const items = [
   { title: "Visão Geral", url: "/", icon: LayoutDashboard, exact: true },
   { title: "Campanhas", url: "/campaigns", icon: BarChart3 },
   { title: "Nova Campanha", url: "/campaigns/new", icon: PlusCircle },
+  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

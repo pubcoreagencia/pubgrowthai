@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useCampaigns, deleteCampaign, type Campaign } from "@/lib/campaigns-store";
-import { computeMetrics, formatBRL, formatInt, formatNumber } from "@/lib/campaign-metrics";
+import { useEstimationSettings } from "@/lib/estimation-settings";
+import { estimateCampaign, formatBRL, formatInt, formatNumber } from "@/lib/campaign-estimates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/campaigns/")({
 
 function CampaignsList() {
   const campaigns = useCampaigns();
+  const settings = useEstimationSettings();
   const [q, setQ] = useState("");
   const [client, setClient] = useState<string>("all");
   const navigate = useNavigate();
@@ -58,7 +60,7 @@ function CampaignsList() {
             Campanhas
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Histórico completo com métricas consolidadas.
+            Histórico completo com métricas projetadas.
           </p>
         </div>
         <Button asChild>
@@ -103,7 +105,7 @@ function CampaignsList() {
                 <TableHead>Campanha</TableHead>
                 <TableHead className="text-right">Investimento</TableHead>
                 <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Seguidores</TableHead>
+                <TableHead className="text-right">Cliques</TableHead>
                 <TableHead className="text-right">Receita</TableHead>
                 <TableHead className="text-right">ROAS</TableHead>
                 <TableHead>Status</TableHead>
@@ -122,6 +124,7 @@ function CampaignsList() {
                 <CampaignRow
                   key={c.id}
                   c={c}
+                  settings={settings}
                   onOpen={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
                 />
               ))}
@@ -133,14 +136,19 @@ function CampaignsList() {
   );
 }
 
-function CampaignRow({ c, onOpen }: { c: Campaign; onOpen: () => void }) {
-  const m = computeMetrics(c);
+function CampaignRow({
+  c,
+  settings,
+  onOpen,
+}: {
+  c: Campaign;
+  settings: ReturnType<typeof useEstimationSettings>;
+  onOpen: () => void;
+}) {
+  const e = estimateCampaign(c, settings);
   const status = getStatus(c);
   return (
-    <TableRow
-      className="cursor-pointer border-border/60"
-      onClick={onOpen}
-    >
+    <TableRow className="cursor-pointer border-border/60" onClick={onOpen}>
       <TableCell className="font-medium">{c.clientName}</TableCell>
       <TableCell>
         <div className="min-w-0">
@@ -150,17 +158,12 @@ function CampaignRow({ c, onOpen }: { c: Campaign; onOpen: () => void }) {
           </div>
         </div>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{formatBRL(m.totalInvestment)}</TableCell>
-      <TableCell className="text-right tabular-nums">{formatInt(c.results.views ?? 0)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatBRL(e.investment)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatInt(e.views)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatInt(e.clicks)}</TableCell>
+      <TableCell className="text-right tabular-nums">{formatBRL(e.revenueTotal)}</TableCell>
       <TableCell className="text-right tabular-nums">
-        <span className={m.followersGained >= 0 ? "text-[color:var(--color-success)]" : "text-destructive"}>
-          {m.followersGained >= 0 ? "+" : ""}
-          {formatInt(m.followersGained)}
-        </span>
-      </TableCell>
-      <TableCell className="text-right tabular-nums">{formatBRL(m.revenue)}</TableCell>
-      <TableCell className="text-right tabular-nums">
-        {m.roas !== null ? formatNumber(m.roas) : "—"}
+        {e.roas !== null ? formatNumber(e.roas) : "—"}
       </TableCell>
       <TableCell>
         <Badge
@@ -176,7 +179,7 @@ function CampaignRow({ c, onOpen }: { c: Campaign; onOpen: () => void }) {
           {status}
         </Badge>
       </TableCell>
-      <TableCell onClick={(e) => e.stopPropagation()}>
+      <TableCell onClick={(ev) => ev.stopPropagation()}>
         <Button
           variant="ghost"
           size="icon"
