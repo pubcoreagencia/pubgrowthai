@@ -164,7 +164,9 @@ function CampaignDetail() {
   }, [c.days, e.investment, e.views, e.clicks]);
 
   const engagementBreakdown = [
-    { name: "Curtidas + Coment.", value: Math.round(e.interactions) },
+    { name: "Curtidas", value: Math.round(e.likes) },
+    { name: "Comentários", value: Math.round(e.comments) },
+    { name: "Compart.", value: Math.round(e.shares) },
     { name: "Salvamentos", value: Math.round(e.saves) },
   ];
 
