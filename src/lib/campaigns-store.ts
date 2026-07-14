@@ -1,5 +1,4 @@
 // Client-side campaign store using localStorage + useSyncExternalStore.
-// Prepared for future API integration — swap the read/write functions.
 
 import { useSyncExternalStore } from "react";
 
@@ -25,10 +24,20 @@ export interface CampaignSetup {
   avgCrossSellValue?: number;
 }
 
-// Only the fields the gestor informs manually. Everything else is
-// derived by the estimation engine — see src/lib/campaign-estimates.ts.
+// Todos os campos abaixo são informados manualmente pelo gestor.
+// Apenas "impressions" é projetada automaticamente a partir das views
+// (ver src/lib/campaign-estimates.ts).
 export interface CampaignResults {
   views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  linkClicks?: number;
+  purchases?: number;
+  upsells?: number;
+  crossSells?: number;
+  revenue?: number;
 }
 
 export interface Campaign extends CampaignSetup {

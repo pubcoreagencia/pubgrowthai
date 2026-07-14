@@ -21,25 +21,16 @@ interface FieldMeta {
   key: keyof EstimationSettings;
   label: string;
   help: string;
-  format: "percent" | "ratio";
-  group: "core" | "revenue" | "funnel";
+  group: "core" | "funnel";
 }
 
 const fields: FieldMeta[] = [
-  { key: "viewsShareOfImpressions", label: "Views ÷ Impressões", help: "Views representam ~10% das impressões.", format: "percent", group: "core" },
-  { key: "engagementRate", label: "Curtidas + Comentários", help: "% das views que geram curtida ou comentário.", format: "percent", group: "core" },
-  { key: "savesRate", label: "Salvamentos", help: "% das views que salvam o conteúdo.", format: "percent", group: "core" },
-  { key: "ctrOnImpressions", label: "CTR sobre impressões", help: "% de impressões que geram clique no link.", format: "percent", group: "core" },
-  { key: "purchaseConversion", label: "Conversão em compra", help: "% dos cliques que convertem em venda.", format: "percent", group: "core" },
-  { key: "upsellRate", label: "Taxa de upsell", help: "% de compradores que aceitam upsell.", format: "percent", group: "revenue" },
-  { key: "crossSellRate", label: "Taxa de cross sell", help: "% de compradores que aceitam cross sell.", format: "percent", group: "revenue" },
-  { key: "upsellValueRatio", label: "Ticket upsell (razão)", help: "Ticket do upsell como % do produto principal.", format: "percent", group: "revenue" },
-  { key: "crossSellValueRatio", label: "Ticket cross sell (razão)", help: "Ticket do cross sell como % do produto principal.", format: "percent", group: "revenue" },
-  { key: "remarketingReachRate", label: "Reimpacto remarketing", help: "% das views que recebem novamente o vídeo.", format: "percent", group: "funnel" },
-  { key: "ctaViewRate", label: "Visualização de CTA", help: "% das views que veem o CTA reforçado.", format: "percent", group: "funnel" },
-  { key: "offerViewRate", label: "Visualização da oferta", help: "% dos cliques que visualizam a oferta.", format: "percent", group: "funnel" },
-  { key: "checkoutInitiationRate", label: "Início de checkout", help: "% dos cliques que iniciam o checkout.", format: "percent", group: "funnel" },
-  { key: "recurringCustomerRate", label: "Clientes recorrentes", help: "% dos compradores que viram recorrentes.", format: "percent", group: "funnel" },
+  { key: "viewsShareOfImpressions", label: "Views ÷ Impressões", help: "Views representam quantos % das impressões (padrão 10%).", group: "core" },
+  { key: "remarketingReachRate", label: "Reimpacto remarketing", help: "% das views que recebem o vídeo novamente.", group: "funnel" },
+  { key: "ctaViewRate", label: "Visualização de CTA", help: "% das views que veem o CTA reforçado.", group: "funnel" },
+  { key: "offerViewRate", label: "Visualização da oferta", help: "% dos cliques que visualizam a oferta.", group: "funnel" },
+  { key: "checkoutInitiationRate", label: "Início de checkout", help: "% dos cliques que iniciam o checkout.", group: "funnel" },
+  { key: "recurringCustomerRate", label: "Clientes recorrentes", help: "% dos compradores que viram recorrentes.", group: "funnel" },
 ];
 
 function SettingsPage() {
@@ -57,26 +48,32 @@ function SettingsPage() {
   };
 
   const groups: Array<{ id: FieldMeta["group"]; title: string; desc: string }> = [
-    { id: "core", title: "Motor principal", desc: "Taxas que projetam impressões, interações, cliques e compras." },
-    { id: "revenue", title: "Economia de receita", desc: "Como cada compra se desdobra em upsell e cross sell." },
-    { id: "funnel", title: "Etapas do funil", desc: "Taxas para as etapas intermediárias do funil inteligente." },
+    {
+      id: "core",
+      title: "Cálculo de impressões",
+      desc: "Único indicador projetado automaticamente pela plataforma.",
+    },
+    {
+      id: "funnel",
+      title: "Etapas intermediárias do funil",
+      desc: "Taxas usadas apenas para desenhar as etapas do funil que não são informadas manualmente (remarketing, CTA, visualização de oferta, checkout, recorrência).",
+    },
   ];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:py-10">
+    <div className="mx-auto max-w-4xl px-4 py-8 md:py-10">
       <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
         Configurações do motor
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Ajuste as taxas médias de mercado que a plataforma utiliza para projetar
-        cada campanha. As mudanças se aplicam imediatamente a todas as campanhas.
+        Ajuste as taxas usadas pelo sistema. Apenas as impressões são simuladas —
+        as demais métricas vêm dos valores reais informados em cada campanha.
       </p>
 
       <div className="mt-4 flex items-start gap-2 rounded-lg border border-border/60 bg-card/40 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <span>
-          Todos os valores são expressos em <strong className="text-foreground">porcentagem</strong>
-          . Ex: digite <code className="rounded bg-muted px-1">10</code> para 10%.
+          Todos os valores são expressos em <strong className="text-foreground">porcentagem</strong>. Ex: digite <code className="rounded bg-muted px-1">10</code> para 10%.
         </span>
       </div>
 
