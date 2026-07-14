@@ -194,7 +194,7 @@ function CampaignDetail() {
               {objectiveLabels[c.objective]}
             </Badge>
             <Badge variant="outline" className="border-warning/50 text-[color:var(--color-warning)]">
-              Estimativa projetada
+              Impressões estimadas
             </Badge>
             <span className="text-xs text-muted-foreground">
               {formatDate(c.startDate)} – {formatDate(c.endDate)} · {c.days} dia
@@ -226,11 +226,10 @@ function CampaignDetail() {
       <div className="mt-5 flex items-start gap-2 rounded-lg border border-border/60 bg-card/40 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <span>
-          Os indicadores abaixo são <strong className="text-foreground">estimativas</strong>{" "}
-          projetadas a partir das <strong className="text-foreground">{formatInt(e.views)} views</strong>{" "}
-          informadas e das taxas médias configuradas na plataforma. Servem como base
-          para tomada de decisão e apresentação ao cliente — não substituem dados
-          reais da Meta.
+          Apenas as <strong className="text-foreground">impressões</strong> são
+          projetadas ({formatInt(e.views)} views ÷{" "}
+          {formatPct(settings.viewsShareOfImpressions * 100, 0)}). Todos os demais
+          indicadores refletem os valores reais informados no cadastro da campanha.
         </span>
       </div>
 
@@ -245,31 +244,32 @@ function CampaignDetail() {
         <StatCard
           label="Views"
           value={formatInt(e.views)}
-          hint={e.cpv !== null ? `CPV ${formatBRL(e.cpv)}` : "informado"}
+          hint={e.cpv !== null ? `CPV ${formatBRL(e.cpv)}` : "Informado"}
           icon={<Eye className="h-4 w-4" />}
           accent="primary"
         />
         <StatCard
-          label="Impressões estimadas"
+          label="Impressões (estimada)"
           value={formatInt(e.impressions)}
-          hint={`${formatPct(settings.viewsShareOfImpressions * 100, 0)} viraram views`}
+          hint={`Views ÷ ${formatPct(settings.viewsShareOfImpressions * 100, 0)}`}
           icon={<Zap className="h-4 w-4" />}
+          accent="warning"
         />
         <StatCard
-          label="Interações estimadas"
+          label="Interações"
           value={formatInt(e.totalEngagements)}
           hint={`Engajamento ${formatPct(e.engagementRate)}`}
           icon={<Users className="h-4 w-4" />}
           accent="success"
         />
         <StatCard
-          label="Cliques estimados"
+          label="Cliques"
           value={formatInt(e.clicks)}
           hint={`CTR ${formatPct(e.ctr)}${e.cpc !== null ? ` · CPC ${formatBRL(e.cpc)}` : ""}`}
           icon={<MousePointerClick className="h-4 w-4" />}
         />
         <StatCard
-          label="Compras estimadas"
+          label="Compras"
           value={formatInt(e.purchases)}
           hint={`${formatPct(e.conversionRate)} dos cliques${e.cpa !== null ? ` · CPA ${formatBRL(e.cpa)}` : ""}`}
           icon={<ShoppingBag className="h-4 w-4" />}
@@ -282,18 +282,18 @@ function CampaignDetail() {
           accent="primary"
         />
         <StatCard
-          label="Receita estimada"
+          label="Receita"
           value={formatBRL(e.revenueTotal)}
-          hint={e.productValue > 0 ? `Ticket ${formatBRL(e.productValue)}` : "Informe o ticket médio"}
+          hint={e.productValue > 0 || e.revenueManual ? (e.revenueManual ? "Informada" : `Ticket ${formatBRL(e.productValue)}`) : "Informe ticket ou receita"}
           icon={<TrendingUp className="h-4 w-4" />}
           accent="success"
         />
         <StatCard
-          label="ROAS estimado"
+          label="ROAS"
           value={e.roas !== null ? formatNumber(e.roas) : "—"}
           hint={
             e.roas === null
-              ? "Sem ticket médio"
+              ? "Sem receita informada"
               : e.roas >= 3
                 ? "Excelente"
                 : e.roas >= 1.5
@@ -304,6 +304,7 @@ function CampaignDetail() {
           accent={e.roas !== null && e.roas >= 2 ? "success" : "warning"}
         />
       </div>
+
 
       {/* Video preview + engagement */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
