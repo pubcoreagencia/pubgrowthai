@@ -378,8 +378,7 @@ function CampaignDetail() {
               </ResponsiveContainer>
             </div>
             <div className="mt-3 text-xs text-muted-foreground">
-              {formatInt(e.interactions)} curtidas + comentários e{" "}
-              {formatInt(e.saves)} salvamentos projetados sobre as views.
+              {formatInt(e.totalEngagements)} interações no total sobre {formatInt(e.views)} views informadas.
             </div>
           </div>
 
