@@ -8,6 +8,7 @@ export type CampaignObjective =
   | "engagement"
   | "traffic"
   | "conversion"
+  | "sales"
   | "awareness";
 
 export interface CampaignSetup {
@@ -19,22 +20,15 @@ export interface CampaignSetup {
   dailyBudget: number;
   days: number;
   objective: CampaignObjective;
+  avgProductValue?: number;
+  avgUpsellValue?: number;
+  avgCrossSellValue?: number;
 }
 
+// Only the fields the gestor informs manually. Everything else is
+// derived by the estimation engine — see src/lib/campaign-estimates.ts.
 export interface CampaignResults {
   views?: number;
-  impressions?: number;
-  reach?: number;
-  likes?: number;
-  comments?: number;
-  shares?: number;
-  saves?: number;
-  linkClicks?: number;
-  followersBefore?: number;
-  followersAfter?: number;
-  purchases?: number;
-  revenue?: number;
-  avgOrderValue?: number;
 }
 
 export interface Campaign extends CampaignSetup {
@@ -87,7 +81,6 @@ export function useCampaigns(): Campaign[] {
   );
 }
 
-// Simple stable-reference cache to avoid infinite render loops.
 const cacheRef: { list: Campaign[] | null } = { list: null };
 function shallowEqual(a: Campaign[], b: Campaign[]) {
   if (a.length !== b.length) return false;
@@ -119,7 +112,14 @@ export function createCampaign(setup: CampaignSetup, results: CampaignResults = 
 export function updateCampaign(id: string, patch: Partial<Omit<Campaign, "id" | "createdAt">>) {
   const list = read();
   const next = list.map((c) =>
-    c.id === id ? { ...c, ...patch, results: { ...c.results, ...(patch.results ?? {}) }, updatedAt: new Date().toISOString() } : c,
+    c.id === id
+      ? {
+          ...c,
+          ...patch,
+          results: { ...c.results, ...(patch.results ?? {}) },
+          updatedAt: new Date().toISOString(),
+        }
+      : c,
   );
   write(next);
 }
